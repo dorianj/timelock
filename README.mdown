@@ -1,0 +1,63 @@
+Spurred on by http://www.gwern.net/Self-decrypting%20files
+
+# Design
+
+This program only deals in keys, not in the actual encrypting of files. There
+are two phases: locking, and unlocking.
+
+## Locking
+
+Locking creates a lockfile. This lockfile describes the stages with just enough
+information for the unlocker to follow.
+
+
+## Unlocking
+
+This phase transforms a lockfile into an encryption key. 
+
+
+## Merging
+
+This phase, optional, is used to combine multiple lockfiles into one. By using
+merge, you may compute many lockfiles in parallel, then merge them. Your advesary
+then must 
+
+# Goals
+
+The fundamental limitation of this sort of time-lock encryption is that an
+equal amount of computing resources must go into locking as unlocking. Thus
+this isn't suitable for long-term (years or decades) time released files.
+Unless, of course, you've got some cash.
+
+## Paralellism
+
+An eventual goal of the project is to include the necessary components to easily
+run this on Heroku. Since each Heroku Dyno includes 4 VCPUs and costs $0.05/hr,
+you could then easily buy time-lock encryption for $0.0125 per hour (assume for
+example that your advesary's CPU is only as fast as Heroku's). In example, using
+100 dynos, 1 year of time lock would take about 1 day: 3.65 days
+    (365 days in year) / (100 dynos) / (4 vcpu) = 0.913 days
+
+And would cost about a hundred bucks
+  0.913 * 24 hours * 100 dynos * $0.05 / dyno-hour = $109
+
+
+If you throw in Heroku's free tier, one could easily get three to four months
+of free time lock a month. I've not tried this on Heroku, and before you try
+this, it would be best to ask their support if this is acceptable use of the
+service.
+
+
+
+# Caveats
+
+I am not a cryptographer; I am but a layman armed with dangerous tools. Use
+at your own risk, there is no implied warranty of any sort.
+
+
+# License
+
+Let's go with BSD.
+
+
+
