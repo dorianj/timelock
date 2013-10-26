@@ -1,26 +1,92 @@
-Spurred on by http://www.gwern.net/Self-decrypting%20files
+# Purpose
+
+This tool implements a crude form of time lock encryption, a method of encrypting
+something such that the decryptor requires no key, but must expend a nontrivial
+amount of sequential computing power. A certain amount of computing resources
+are expended by the encyptor, and that same amount must be expended by
+the decryptor, however the dycryptor must do it sequentially while the encryptor
+may perform it in parallel. Thus it is possible for the encyptor, using sufficient
+parallel resources, to create days, months, or years of time-lock.
+
+For more information, here's the article http://www.gwern.net/Self-decrypting%20files
+that inspired this project.
+
+
+# Caveats
+
+I am not a cryptographer; I am but a layman armed with dangerous tools. Use
+at your own risk, there is no implied warranty of any sort. This project is in
+an extremely early state, so please get in contact with me before submitting
+non-trivial pull requests.
+
+This is also the first time I've used go. I've probably butchered it, sorry.
+
 
 # Design
 
-This program only deals in keys, not in the actual encrypting of files. There
-are two phases: locking, and unlocking.
+This program only deals in keys, not in the actual encrypting of files. It deals
+primarily in two types of files: chainfiles and lockfiles. Both are JSON and
+include similar data, but are used for very different purposes. These data
+structures are specified as JSON, not in-memory structures, so that they may
+be distributed.
+
+
+
+## chainfile
+
+The chainfile is the result of repeated hashing, and a set of proofs of work:
+each a seed and a hash. The hashing algorithm used is specified in the 'Meta'
+dictionary, but no other information is specified. Thus this data structure
+represents is a seed and a hash value arrived at after an unspecified number
+of hash stretching iteration.
+
+## lockfile
+
+The lockfile represents the challenge--this is what you would distribute with
+an encypted file, for example, if you wished to lock that file.
+
+It contains an ordered list of encypted seeds and a verification for each. The
+first seed is plaintext, and the following seeds are encrypted with the previous
+hash.
+
+Since the number of rounds isn't specified in the lockfile, there must be a way
+for the client to know when it has finished hashing a link. This is accomplished
+by including a hash of the target hash; i.e. if 1000 rounds were originally
+used, the verify hash would be round 1001. This opens the possibility that it
+may be easier to work backwards from the verification hash, however I believe
+that use of a suitable cryptographically secure hash makes this avenue less
+attractive than computing the 'intended' work.
+
+
+## chainfile production
+
+Run `timelock produce --rounds <number_of_rounds>` to produce a chainfile with
+a single entry, representing <number_of_rounds> rounds of SHA512. I've not
+implemented parallelism yet, and probably will never in the core tool; instead
+an auxilliary tool will launch multiple production processes.
+
+
+## chainfile concatenation
+
+Since chainfiles imply no order--they are simply proof of work--they may be
+concatenated together arbitrarily.This allows multiple chainfiles to be
+computed in parallel, then merged into a single chainfile.
+
 
 ## Locking
 
-Locking creates a lockfile. This lockfile describes the stages with just enough
-information for the unlocker to follow.
+Locking reads a chainfile and creates a lockfile.
 
 
 ## Unlocking
 
-This phase transforms a lockfile into an encryption key. 
+Unlocking reads a lockfile and returns an encryption key, that is, the
+hash of the final seed in the lockfile.
 
 
 ## Merging
 
-This phase, optional, is used to combine multiple lockfiles into one. By using
-merge, you may compute many lockfiles in parallel, then merge them. Your advesary
-then must 
+This phase, optional, is used to combine multiple chainfiles into one. 
 
 # Goals
 
@@ -34,30 +100,30 @@ Unless, of course, you've got some cash.
 An eventual goal of the project is to include the necessary components to easily
 run this on Heroku. Since each Heroku Dyno includes 4 VCPUs and costs $0.05/hr,
 you could then easily buy time-lock encryption for $0.0125 per hour (assume for
-example that your advesary's CPU is only as fast as Heroku's). In example, using
-100 dynos, 1 year of time lock would take about 1 day: 3.65 days
+this example that your advesary's CPU is as slow as Heroku's). In example, using
+100 dynos, 1 year of time lock would take about 1 day:
+
     (365 days in year) / (100 dynos) / (4 vcpu) = 0.913 days
 
-And would cost about a hundred bucks
-  0.913 * 24 hours * 100 dynos * $0.05 / dyno-hour = $109
+
+And would cost about a hundred bucks:
+
+    0.913 * 24 hours * 100 dynos * $0.05 / dyno-hour = $109
 
 
 If you throw in Heroku's free tier, one could easily get three to four months
-of free time lock a month. I've not tried this on Heroku, and before you try
-this, it would be best to ask their support if this is acceptable use of the
-service.
+of free time lock every month. I've not tried this on Heroku, and before you
+try this, it would be best to ask their support if this is acceptable use of
+their great service.
 
 
+## Swappable hash alogirthms
 
-# Caveats
-
-I am not a cryptographer; I am but a layman armed with dangerous tools. Use
-at your own risk, there is no implied warranty of any sort.
+The initially implemented algorithm, SHA512, is a poor choice since GPUs or
+other specialized devices can compute it quite quickly. Pluggable algorithms
+would allow something better to be used, like scrypt.
 
 
 # License
 
 Let's go with BSD.
-
-
-
