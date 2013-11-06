@@ -35,19 +35,11 @@ type chainfileFormat struct {
 	Chain []chainfileLink
 }
 
-func _benchmark(rounds int) {
-	fmt.Printf("Benchmarking hasher...\n")
-	start := time.Now()
-	hashChainRounds(rounds, randomBytes(64))
-	duration := time.Now().Sub(start).Seconds()
-	hashesPerSecond := float64(rounds) / duration
-	fmt.Printf("%d hashes in %f seconds; %.0f hashes per second\n",
-		rounds, duration, hashesPerSecond)
-}
+////////////////
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Printf("No command specified.\n")
+		fmt.Fprintf(os.Stderr, "No command specified.\n")
 		return
 	}
 	cmd := os.Args[1]
@@ -58,66 +50,89 @@ func main() {
 		rounds := flag.Int("rounds", 100000, "Number of hashes to use in benchmark")
 		flag.Parse()
 		_benchmark(*rounds)
+	case "work":
+		rounds := flag.Int("rounds", 100000, "Number of hashes to use in benchmark")
+		links := flag.Int("j", 1, "Number of links to compute, e.g. threads")
+		flag.Parse()
+		_work(*links, *rounds)
+	case "concat":
+		_concat(os.Args[1:])
+	case "lock":
+		_lock()
+	case "unlock":
+		_unlock()
+
 	default:
 		fmt.Printf("Unknown command: %s\n", cmd)
 	}
+}
 
-	return
-	/*
-		chainfileCount := 6
-		fmt.Printf("Creating %d chainfiles...\n", chainfileCount)
+func _benchmark(rounds int) {
+	fmt.Fprintf(os.Stderr, "Benchmarking hasher...\n")
+	start := time.Now()
+	hashChainRounds(rounds, randomBytes(64))
+	duration := time.Now().Sub(start).Seconds()
+	hashesPerSecond := float64(rounds) / duration
+	fmt.Fprintf(os.Stderr, "%d hashes in %f seconds; %.0f hashes per second\n",
+		rounds, duration, hashesPerSecond)
+}
 
-		for j := 0; j < chainfileCount; j++ {
-			seed := randomBytes(64)
-			hash := hashChainRounds(rounds, seed)
+func _work(links int, rounds int) {
+	fmt.Fprintf(os.Stderr, "Creating a chainfile with %d links, each of %d rounds...\n",
+		links, rounds)
+	chain := make([]chainfileLink, 0)
+	for j := 0; j < links; j++ {
+		seed := randomBytes(64)
+		hash := hashChainRounds(rounds, seed)
+		chain = append(chain, chainfileLink{PlaintextSeed: seed, Hash: hash})
+		fmt.Fprintf(os.Stderr, "Computing link %d\n", j)
+	}
 
-			f, err := os.Create(fmt.Sprintf("tmp_chainfile%d.json", j))
-			if err != nil {
-				panic(err)
-			}
+	if err := writeChainfile(os.Stdout, chain); err != nil {
+		panic(err)
+	}
+}
 
-			link := chainfileLink{PlaintextSeed: seed, Hash: hash}
-			if err := writeChainfile(f, []chainfileLink{link}); err != nil {
-				panic(err)
-			}
-		}
-
-		fmt.Printf("Merging into one chainfile...\n")
-		mergedChain := make([]chainfileLink, 0)
-		for j := 0; j < chainfileCount; j++ {
-			f, err := os.Open(fmt.Sprintf("tmp_chainfile%d.json", j))
-			if err != nil {
-				panic(err)
-			}
-
-			chainfile := &chainfileFormat{}
-			json.NewDecoder(f).Decode(chainfile)
-
-			for _, chainLink := range chainfile.Chain {
-				mergedChain = append(mergedChain, chainLink)
-			}
-
-			os.Remove(fmt.Sprintf("tmp_chainfile%d.json", j))
-		}
-
-		fmt.Printf("Merged chainfile has %d links. Final hash: %s\n",
-			len(mergedChain), base64.URLEncoding.EncodeToString(mergedChain[len(mergedChain)-1].Hash))
-
-		fmt.Printf("Converting chainfile to lockfile...\n")
-		lockedChain := transformChainFileToLockFile(mergedChain)
-		fmt.Printf("Locked chain has %d links\n", len(lockedChain))
-
-		fmt.Printf("Writing out the lockfile...\n")
-		outputFile, err := os.Create("lockfile.json")
+func _concat(filePaths []string) {
+	fmt.Fprintf(os.Stderr, "Merging %d chainfiles into one chainfile...\n",
+		len(filePaths))
+	mergedChain := make([]chainfileLink, 0)
+	for _, path := range filePaths {
+		f, err := os.Open(path)
 		if err != nil {
 			panic(err)
 		}
 
-		if err := writeLockfile(outputFile, lockedChain); err != nil {
-			panic(err)
-		}
+		chainfile := &chainfileFormat{}
+		json.NewDecoder(f).Decode(chainfile)
 
-		fmt.Printf("\nUnlocking the lockfile...\n")
+		for _, chainLink := range chainfile.Chain {
+			mergedChain = append(mergedChain, chainLink)
+		}
+	}
+	if err := writeChainfile(os.Stdout, mergedChain); err != nil {
+		panic(err)
+	}
+}
+
+func _lock() {
+	/*fmt.Printf("Converting chainfile to lockfile...\n")
+	lockedChain := transformChainFileToLockFile(mergedChain)
+	fmt.Printf("Locked chain has %d links\n", len(lockedChain))
+
+	fmt.Printf("Writing out the lockfile...\n")
+	outputFile, err := os.Create("lockfile.json")
+	if err != nil {
+		panic(err)
+	}
+
+	if err := writeLockfile(outputFile, lockedChain); err != nil {
+		panic(err)
+	}*/
+}
+
+func _unlock() {
+	/*	fmt.Printf("\nUnlocking the lockfile...\n")
 		f, err := os.Open("lockfile.json")
 		if err != nil {
 			panic(err)
@@ -151,8 +166,7 @@ func main() {
 		}
 
 		fmt.Printf("Unlock successful. Final hash: %s\n",
-			base64.URLEncoding.EncodeToString(previousHash))
-	*/
+			base64.URLEncoding.EncodeToString(previousHash))*/
 }
 
 func writeChainfile(w io.Writer, chain []chainfileLink) error {
