@@ -6,8 +6,9 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/sha512"
-	"encoding/base64"
+	//"encoding/base64"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -34,105 +35,124 @@ type chainfileFormat struct {
 	Chain []chainfileLink
 }
 
-func main() {
+func _benchmark(rounds int) {
 	fmt.Printf("Benchmarking hasher...\n")
 	start := time.Now()
-	rounds := 800000
 	hashChainRounds(rounds, randomBytes(64))
 	duration := time.Now().Sub(start).Seconds()
 	hashesPerSecond := float64(rounds) / duration
-	fmt.Printf("Took %f seconds for %d hashes (%.0f hashes per second)\n",
-		duration, rounds, hashesPerSecond)
+	fmt.Printf("%d hashes in %f seconds; %.0f hashes per second\n",
+		rounds, duration, hashesPerSecond)
+}
 
-	chainfileCount := 6
-	fmt.Printf("Creating %d chainfiles...\n", chainfileCount)
+func main() {
+	if len(os.Args) < 2 {
+		fmt.Printf("No command specified.\n")
+		return
+	}
+	cmd := os.Args[1]
+	os.Args = append(os.Args[0:1], os.Args[2:]...)
 
-	for j := 0; j < chainfileCount; j++ {
-		seed := randomBytes(64)
-		hash := hashChainRounds(rounds, seed)
-
-		f, err := os.Create(fmt.Sprintf("tmp_chainfile%d.json", j))
-		if err != nil {
-			panic(err)
-		}
-
-		link := chainfileLink{PlaintextSeed: seed, Hash: hash}
-		if err := writeChainfile(f, []chainfileLink{link}); err != nil {
-			panic(err)
-		}
+	switch cmd {
+	case "benchmark":
+		rounds := flag.Int("rounds", 100000, "Number of hashes to use in benchmark")
+		flag.Parse()
+		_benchmark(*rounds)
+	default:
+		fmt.Printf("Unknown command: %s\n", cmd)
 	}
 
-	fmt.Printf("Merging into one chainfile...\n")
-	mergedChain := make([]chainfileLink, 0)
-	for j := 0; j < chainfileCount; j++ {
-		f, err := os.Open(fmt.Sprintf("tmp_chainfile%d.json", j))
-		if err != nil {
-			panic(err)
-		}
+	return
+	/*
+		chainfileCount := 6
+		fmt.Printf("Creating %d chainfiles...\n", chainfileCount)
 
-		chainfile := &chainfileFormat{}
-		json.NewDecoder(f).Decode(chainfile)
+		for j := 0; j < chainfileCount; j++ {
+			seed := randomBytes(64)
+			hash := hashChainRounds(rounds, seed)
 
-		for _, chainLink := range chainfile.Chain {
-			mergedChain = append(mergedChain, chainLink)
-		}
-
-		os.Remove(fmt.Sprintf("tmp_chainfile%d.json", j))
-	}
-
-	fmt.Printf("Merged chainfile has %d links. Final hash: %s\n",
-		len(mergedChain), base64.URLEncoding.EncodeToString(mergedChain[len(mergedChain)-1].Hash))
-
-	fmt.Printf("Converting chainfile to lockfile...\n")
-	lockedChain := transformChainFileToLockFile(mergedChain)
-	fmt.Printf("Locked chain has %d links\n", len(lockedChain))
-
-	fmt.Printf("Writing out the lockfile...\n")
-	outputFile, err := os.Create("lockfile.json")
-	if err != nil {
-		panic(err)
-	}
-
-	if err := writeLockfile(outputFile, lockedChain); err != nil {
-		panic(err)
-	}
-
-	fmt.Printf("\nUnlocking the lockfile...\n")
-	f, err := os.Open("lockfile.json")
-	if err != nil {
-		panic(err)
-	}
-
-	lockfile := &lockfileFormat{}
-	json.NewDecoder(f).Decode(lockfile)
-
-	var previousHash []byte = nil
-	for _, chainLink := range lockfile.Chain {
-		var plaintextSeed []byte
-		if previousHash == nil {
-			// This is the first block and thus the EncyptedSeed isn't encrypted
-			plaintextSeed = chainLink.EncyptedSeed
-		} else {
-			// First 32 bytes of hash are the key
-			block, err := aes.NewCipher(previousHash[0:32])
+			f, err := os.Create(fmt.Sprintf("tmp_chainfile%d.json", j))
 			if err != nil {
 				panic(err)
 			}
 
-			// Next 16 bytes are the IV
-			mode := cipher.NewCBCDecrypter(block, previousHash[32:32+aes.BlockSize])
-
-			// Decrypt
-			plaintextSeed = make([]byte, len(chainLink.EncyptedSeed))
-			mode.CryptBlocks(plaintextSeed, chainLink.EncyptedSeed)
+			link := chainfileLink{PlaintextSeed: seed, Hash: hash}
+			if err := writeChainfile(f, []chainfileLink{link}); err != nil {
+				panic(err)
+			}
 		}
 
-		previousHash = hashChainVerification(plaintextSeed, chainLink.VerifyHash)
-	}
+		fmt.Printf("Merging into one chainfile...\n")
+		mergedChain := make([]chainfileLink, 0)
+		for j := 0; j < chainfileCount; j++ {
+			f, err := os.Open(fmt.Sprintf("tmp_chainfile%d.json", j))
+			if err != nil {
+				panic(err)
+			}
 
-	fmt.Printf("Unlock successful. Final hash: %s\n",
-		base64.URLEncoding.EncodeToString(previousHash))
+			chainfile := &chainfileFormat{}
+			json.NewDecoder(f).Decode(chainfile)
 
+			for _, chainLink := range chainfile.Chain {
+				mergedChain = append(mergedChain, chainLink)
+			}
+
+			os.Remove(fmt.Sprintf("tmp_chainfile%d.json", j))
+		}
+
+		fmt.Printf("Merged chainfile has %d links. Final hash: %s\n",
+			len(mergedChain), base64.URLEncoding.EncodeToString(mergedChain[len(mergedChain)-1].Hash))
+
+		fmt.Printf("Converting chainfile to lockfile...\n")
+		lockedChain := transformChainFileToLockFile(mergedChain)
+		fmt.Printf("Locked chain has %d links\n", len(lockedChain))
+
+		fmt.Printf("Writing out the lockfile...\n")
+		outputFile, err := os.Create("lockfile.json")
+		if err != nil {
+			panic(err)
+		}
+
+		if err := writeLockfile(outputFile, lockedChain); err != nil {
+			panic(err)
+		}
+
+		fmt.Printf("\nUnlocking the lockfile...\n")
+		f, err := os.Open("lockfile.json")
+		if err != nil {
+			panic(err)
+		}
+
+		lockfile := &lockfileFormat{}
+		json.NewDecoder(f).Decode(lockfile)
+
+		var previousHash []byte = nil
+		for _, chainLink := range lockfile.Chain {
+			var plaintextSeed []byte
+			if previousHash == nil {
+				// This is the first block and thus the EncyptedSeed isn't encrypted
+				plaintextSeed = chainLink.EncyptedSeed
+			} else {
+				// First 32 bytes of hash are the key
+				block, err := aes.NewCipher(previousHash[0:32])
+				if err != nil {
+					panic(err)
+				}
+
+				// Next 16 bytes are the IV
+				mode := cipher.NewCBCDecrypter(block, previousHash[32:32+aes.BlockSize])
+
+				// Decrypt
+				plaintextSeed = make([]byte, len(chainLink.EncyptedSeed))
+				mode.CryptBlocks(plaintextSeed, chainLink.EncyptedSeed)
+			}
+
+			previousHash = hashChainVerification(plaintextSeed, chainLink.VerifyHash)
+		}
+
+		fmt.Printf("Unlock successful. Final hash: %s\n",
+			base64.URLEncoding.EncodeToString(previousHash))
+	*/
 }
 
 func writeChainfile(w io.Writer, chain []chainfileLink) error {
