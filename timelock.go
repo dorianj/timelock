@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"time"
 )
 
@@ -47,7 +48,7 @@ func main() {
 
 	switch cmd {
 	case "benchmark":
-		rounds := flag.Int("rounds", 100000, "Number of hashes to use in benchmark")
+		rounds := flag.Int("rounds", 200000, "Number of hashes to use in benchmark")
 		flag.Parse()
 		_benchmark(*rounds)
 	case "work":
@@ -68,6 +69,7 @@ func main() {
 }
 
 func _benchmark(rounds int) {
+	fmt.Fprintf(os.Stderr, "Available Processors: %d\n", runtime.GOMAXPROCS(0))
 	fmt.Fprintf(os.Stderr, "Benchmarking hasher...\n")
 	start := time.Now()
 	hashChainRounds(rounds, randomBytes(64))
