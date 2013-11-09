@@ -52,8 +52,8 @@ func main() {
 		flag.Parse()
 		_benchmark(*rounds)
 	case "work":
-		rounds := flag.Int("rounds", 100000, "Number of hashes to use in benchmark")
 		links := flag.Int("j", 1, "Number of links to compute, e.g. threads")
+		rounds := flag.Int("rounds", 100000, "Number of hashes to compute for each link")
 		flag.Parse()
 		_work(*links, *rounds)
 	case "concat":
@@ -82,12 +82,17 @@ func _benchmark(rounds int) {
 func _work(links int, rounds int) {
 	fmt.Fprintf(os.Stderr, "Creating a chainfile with %d links, each of %d rounds...\n",
 		links, rounds)
-	chain := make([]chainfileLink, 0)
+
+	chain_links := make(chan chainfileLink)
+
 	for j := 0; j < links; j++ {
 		seed := randomBytes(64)
-		hash := hashChainRounds(rounds, seed)
-		chain = append(chain, chainfileLink{PlaintextSeed: seed, Hash: hash})
-		fmt.Fprintf(os.Stderr, "Computing link %d\n", j)
+		go func() { chain_links <- chainfileLink{seed, hashChainRounds(rounds, seed)} }()
+	}
+
+	chain := make([]chainfileLink, 0)
+	for j := 0; j < links; j++ {
+		chain = append(chain, <-chain_links)
 	}
 
 	if err := writeChainfile(os.Stdout, chain); err != nil {
