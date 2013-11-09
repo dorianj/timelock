@@ -6,7 +6,7 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/sha512"
-	//"encoding/base64"
+	"encoding/base64"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -127,41 +127,38 @@ func _lock() {
 }
 
 func _unlock() {
-	/*	fmt.Printf("\nUnlocking the lockfile...\n")
-		f, err := os.Open("lockfile.json")
-		if err != nil {
-			panic(err)
-		}
+	lockfile := &lockfileFormat{}
+	json.NewDecoder(os.Stdin).Decode(lockfile)
+	fmt.Fprintf(os.Stderr, "Unlocking lockfile with %d links...\n", len(lockfile.Chain))
 
-		lockfile := &lockfileFormat{}
-		json.NewDecoder(f).Decode(lockfile)
-
-		var previousHash []byte = nil
-		for _, chainLink := range lockfile.Chain {
-			var plaintextSeed []byte
-			if previousHash == nil {
-				// This is the first block and thus the EncyptedSeed isn't encrypted
-				plaintextSeed = chainLink.EncyptedSeed
-			} else {
-				// First 32 bytes of hash are the key
-				block, err := aes.NewCipher(previousHash[0:32])
-				if err != nil {
-					panic(err)
-				}
-
-				// Next 16 bytes are the IV
-				mode := cipher.NewCBCDecrypter(block, previousHash[32:32+aes.BlockSize])
-
-				// Decrypt
-				plaintextSeed = make([]byte, len(chainLink.EncyptedSeed))
-				mode.CryptBlocks(plaintextSeed, chainLink.EncyptedSeed)
+	var previousHash []byte = nil
+	for i, chainLink := range lockfile.Chain {
+		var plaintextSeed []byte
+		if previousHash == nil {
+			// This is the first block and thus the EncyptedSeed isn't encrypted
+			plaintextSeed = chainLink.EncyptedSeed
+		} else {
+			// First 32 bytes of hash are the key
+			block, err := aes.NewCipher(previousHash[0:32])
+			if err != nil {
+				panic(err)
 			}
 
-			previousHash = hashChainVerification(plaintextSeed, chainLink.VerifyHash)
+			// Next 16 bytes are the IV
+			mode := cipher.NewCBCDecrypter(block, previousHash[32:32+aes.BlockSize])
+
+			// Decrypt
+			plaintextSeed = make([]byte, len(chainLink.EncyptedSeed))
+			mode.CryptBlocks(plaintextSeed, chainLink.EncyptedSeed)
 		}
 
-		fmt.Printf("Unlock successful. Final hash: %s\n",
-			base64.URLEncoding.EncodeToString(previousHash))*/
+		fmt.Fprintf(os.Stderr, "Unlocking link #%d\n", i)
+		previousHash = hashChainVerification(plaintextSeed, chainLink.VerifyHash)
+	}
+
+	fmt.Fprintf(os.Stderr, "Unlock successful. Final hash: %s\n",
+		base64.URLEncoding.EncodeToString(previousHash))
+	fmt.Fprintf(os.Stdout, "%s", base64.URLEncoding.EncodeToString(previousHash))
 }
 
 func writeChainfile(w io.Writer, chain []chainfileLink) error {
