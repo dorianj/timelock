@@ -116,19 +116,14 @@ func _concat(filePaths []string) {
 }
 
 func _lock() {
-	/*fmt.Printf("Converting chainfile to lockfile...\n")
-	lockedChain := transformChainFileToLockFile(mergedChain)
-	fmt.Printf("Locked chain has %d links\n", len(lockedChain))
+	fmt.Fprintf(os.Stderr, "Converting chainfile to lockfile...\n")
 
-	fmt.Printf("Writing out the lockfile...\n")
-	outputFile, err := os.Create("lockfile.json")
-	if err != nil {
+	chainfile := &chainfileFormat{}
+	json.NewDecoder(os.Stdin).Decode(chainfile)
+	lockedChain := transformChainFileToLockFile(chainfile.Chain)
+	if err := writeLockfile(os.Stdout, lockedChain); err != nil {
 		panic(err)
 	}
-
-	if err := writeLockfile(outputFile, lockedChain); err != nil {
-		panic(err)
-	}*/
 }
 
 func _unlock() {
