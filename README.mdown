@@ -63,7 +63,7 @@ attractive than computing the 'intended' work.
 Run `timelock produce --rounds <number_of_rounds>` to produce a chainfile with
 a single entry, representing <number_of_rounds> rounds of SHA512. I've not
 implemented parallelism yet, and probably will never in the core tool; instead
-an auxilliary tool will launch multiple production processes.
+an auxiliary tool will launch multiple production processes.
 
 
 ## chainfile concatenation
