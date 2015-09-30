@@ -100,7 +100,7 @@ Unless, of course, you've got some cash.
 An eventual goal of the project is to include the necessary components to easily
 run this on Heroku. Since each Heroku Dyno includes 4 VCPUs and costs $0.05/hr,
 you could then easily buy time-lock encryption for $0.0125 per hour (assume for
-this example that your advesary's CPU is as slow as Heroku's). In example, using
+this example that your adversary's CPU is as slow as Heroku's). In example, using
 100 dynos, 1 year of time lock would take about 1 day:
 
     (365 days in year) / (100 dynos) / (4 vcpu) = 0.913 days
